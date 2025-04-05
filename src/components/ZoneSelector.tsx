@@ -114,28 +114,11 @@ const ZoneSelector: React.FC<ZoneSelectorProps> = ({
         </Label>
       </div>
       
-      <div className="flex space-x-2">
-        <Button
-          variant={isSelecting ? "secondary" : "outline"}
-          onClick={startSelection}
-          disabled={isDragging}
-        >
-          <Square className="mr-2 h-4 w-4" />
-          {isSelecting ? "Selecting Zone..." : "Select Zone"}
+      {currentZone && !isSelecting && (
+        <Button variant="outline" onClick={clearZone} size="sm" className="w-fit">
+          Clear Zone
         </Button>
-        
-        {isSelecting && (
-          <Button variant="outline" onClick={cancelSelection}>
-            Cancel
-          </Button>
-        )}
-        
-        {currentZone && !isSelecting && (
-          <Button variant="outline" onClick={clearZone}>
-            Clear Zone
-          </Button>
-        )}
-      </div>
+      )}
       
       {containerRef.current && currentZone && (
         <div 
