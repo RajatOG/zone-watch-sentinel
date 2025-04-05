@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { cn } from '@/lib/utils';
 
@@ -9,7 +8,15 @@ export interface MovementEvent {
     y: number;
     width: number;
     height: number;
-  };
+  } | null;
+  detectedObjects?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    label: string;
+    confidence: number;
+  }[] | null;
 }
 
 interface TimelineProps {
