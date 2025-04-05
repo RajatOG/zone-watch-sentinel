@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Square } from 'lucide-react';
+import { Checkbox } from './ui/checkbox';
+import { Label } from './ui/label';
 
 interface Zone {
   x: number;
@@ -95,6 +97,23 @@ const ZoneSelector: React.FC<ZoneSelectorProps> = ({
 
   return (
     <div className="flex flex-col space-y-2">
+      <div className="flex items-center space-x-2 mb-2">
+        <Checkbox 
+          id="zone-select"
+          checked={isSelecting}
+          onCheckedChange={(checked) => {
+            if (checked) {
+              startSelection();
+            } else {
+              cancelSelection();
+            }
+          }}
+        />
+        <Label htmlFor="zone-select" className="cursor-pointer">
+          {isSelecting ? "Now click and drag to select zone" : "Select monitoring zone"}
+        </Label>
+      </div>
+      
       <div className="flex space-x-2">
         <Button
           variant={isSelecting ? "secondary" : "outline"}
@@ -133,7 +152,7 @@ const ZoneSelector: React.FC<ZoneSelectorProps> = ({
       
       {isSelecting && (
         <div 
-          className="absolute top-0 left-0 w-full h-full cursor-crosshair"
+          className="absolute top-0 left-0 w-full h-full cursor-crosshair z-10"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
