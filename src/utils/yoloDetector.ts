@@ -1,16 +1,5 @@
 
-import { pipeline, RawImage } from '@huggingface/transformers';
-
-export interface Detection {
-  box: {
-    xmin: number;
-    ymin: number;
-    xmax: number;
-    ymax: number;
-  };
-  label: string;
-  score: number;
-}
+import * as tf from '@tensorflow/tfjs';
 
 export interface DetectedObject {
   x: number;
@@ -21,23 +10,47 @@ export interface DetectedObject {
   confidence: number;
 }
 
+// COCO dataset classes that COCO-SSD model can detect
+const CLASSES = [
+  'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
+  'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat',
+  'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack',
+  'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+  'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
+  'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+  'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
+  'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse',
+  'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator',
+  'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
+];
+
 let detector: any = null;
 let isLoading = false;
 
-// Initialize the YOLO detector
+// Initialize the detector
 export const initializeDetector = async () => {
   if (detector || isLoading) return;
   
   try {
     isLoading = true;
-    console.log("Loading YOLO model...");
-    // Using YOLOv8n which is smaller and faster for browser environments
-    detector = await pipeline('object-detection', 'Xenova/yolov8n');
-    console.log("YOLO model loaded successfully");
+    console.log("Loading TensorFlow.js COCO-SSD model...");
+    
+    // Make sure TensorFlow.js is initialized
+    await tf.ready();
+    
+    // Import COCO-SSD model dynamically
+    const cocoSsd = await import('@tensorflow-models/coco-ssd');
+    
+    // Load the COCO-SSD model
+    detector = await cocoSsd.load({
+      base: 'lite_mobilenet_v2' // Using a lightweight model for better performance
+    });
+    
+    console.log("TensorFlow.js COCO-SSD model loaded successfully");
     isLoading = false;
     return detector;
   } catch (error) {
-    console.error("Error loading YOLO model:", error);
+    console.error("Error loading detection model:", error);
     isLoading = false;
     throw error;
   }
@@ -59,29 +72,25 @@ export const detectObjects = async (
   
   try {
     // Run detection on the current video frame
-    const detections = await detector(videoElement, {
-      threshold: 0.5,  // Confidence threshold
-      imageSize: 416,  // Input size for the model
-    });
+    const predictions = await detector.detect(videoElement);
     
     // Convert detections to our format and scale to container dimensions
-    return detections.map((detection: Detection) => {
-      const { box, label, score } = detection;
-      const { xmin, ymin, xmax, ymax } = box;
+    return predictions.map((prediction: any) => {
+      const [x, y, width, height] = prediction.bbox;
       
       // Calculate display coordinates (scaled to container size)
-      const x = xmin * (containerWidth / videoElement.videoWidth);
-      const y = ymin * (containerHeight / videoElement.videoHeight);
-      const width = (xmax - xmin) * (containerWidth / videoElement.videoWidth);
-      const height = (ymax - ymin) * (containerHeight / videoElement.videoHeight);
+      const scaledX = x * (containerWidth / videoElement.videoWidth);
+      const scaledY = y * (containerHeight / videoElement.videoHeight);
+      const scaledWidth = width * (containerWidth / videoElement.videoWidth);
+      const scaledHeight = height * (containerHeight / videoElement.videoHeight);
       
       return {
-        x,
-        y,
-        width,
-        height,
-        label,
-        confidence: score,
+        x: scaledX,
+        y: scaledY,
+        width: scaledWidth,
+        height: scaledHeight,
+        label: prediction.class,
+        confidence: prediction.score,
       };
     });
   } catch (error) {
