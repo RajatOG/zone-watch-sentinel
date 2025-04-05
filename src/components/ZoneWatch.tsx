@@ -1,19 +1,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import VideoPlayer from './VideoPlayer';
-import ZoneSelector from './ZoneSelector';
+import MovementDisplay from './ZoneSelector'; // Keeping the import to avoid breaking other imports
 import Timeline, { MovementEvent } from './Timeline';
 import ControlPanel from './ControlPanel';
 import { detectMovement, getBoundingBoxForMovement, Zone } from '../utils/movementDetector';
 import { Card, CardContent } from './ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
 import { Play, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const ZoneWatch: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -57,12 +55,12 @@ const ZoneWatch: React.FC = () => {
     }
   };
 
-  // Process video to detect movements
+  // Process video to detect movements across the entire video
   const processVideo = async () => {
-    if (!videoRef.current || !selectedZone) {
+    if (!videoRef.current) {
       toast({
         title: "Processing Error",
-        description: "Please select a zone before processing",
+        description: "Please upload a video before processing",
         variant: "destructive",
       });
       return;
@@ -93,15 +91,12 @@ const ZoneWatch: React.FC = () => {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     
-    // Scale the selected zone to match video dimensions if needed
-    const scaleX = video.videoWidth / (containerRef.current?.clientWidth || 1);
-    const scaleY = video.videoHeight / (containerRef.current?.clientHeight || 1);
-    
-    const scaledZone = {
-      x: selectedZone.x * scaleX,
-      y: selectedZone.y * scaleY,
-      width: selectedZone.width * scaleX,
-      height: selectedZone.height * scaleY,
+    // Process the entire video frame (no specific zone)
+    const fullFrameZone = {
+      x: 0,
+      y: 0,
+      width: video.videoWidth,
+      height: video.videoHeight,
     };
     
     // Process the video by iterating through frames
@@ -116,10 +111,12 @@ const ZoneWatch: React.FC = () => {
       
       // If we have a previous frame, compare them
       if (prevFrameRef.current) {
+        // Note: Ideally, we would use YOLO here for better object detection
+        // For now, using our basic movement detection function
         const hasMovement = detectMovement(
           prevFrameRef.current, 
           currentFrame, 
-          scaledZone,
+          fullFrameZone,
           sensitivityThreshold,
           movementThreshold
         );
@@ -128,19 +125,22 @@ const ZoneWatch: React.FC = () => {
           const boundingBox = getBoundingBoxForMovement(
             prevFrameRef.current,
             currentFrame,
-            scaledZone,
+            fullFrameZone,
             sensitivityThreshold
           );
           
           if (boundingBox) {
+            const displayBoundingBox = {
+              // Scale to display dimensions
+              x: boundingBox.x * (containerRef.current?.clientWidth || 1) / video.videoWidth,
+              y: boundingBox.y * (containerRef.current?.clientHeight || 1) / video.videoHeight,
+              width: boundingBox.width * (containerRef.current?.clientWidth || 1) / video.videoWidth,
+              height: boundingBox.height * (containerRef.current?.clientHeight || 1) / video.videoHeight,
+            };
+            
             events.push({
               timestamp: video.currentTime,
-              boundingBox: {
-                x: boundingBox.x / scaleX,
-                y: boundingBox.y / scaleY,
-                width: boundingBox.width / scaleX,
-                height: boundingBox.height / scaleY,
-              },
+              boundingBox: displayBoundingBox,
             });
           }
         }
@@ -172,7 +172,7 @@ const ZoneWatch: React.FC = () => {
         video.currentTime = 0;
         toast({
           title: "Processing Complete",
-          description: `Found ${events.length} movement events`,
+          description: `Found ${events.length} movement events across the entire video`,
         });
       }
     };
@@ -182,10 +182,10 @@ const ZoneWatch: React.FC = () => {
 
   // Handle real-time movement detection while playing
   const startRealTimeDetection = () => {
-    if (!videoRef.current || !selectedZone) {
+    if (!videoRef.current) {
       toast({
         title: "Detection Error",
-        description: "Please select a zone first",
+        description: "Please upload a video first",
         variant: "destructive",
       });
       return;
@@ -208,15 +208,12 @@ const ZoneWatch: React.FC = () => {
     // Start video playback
     videoRef.current.play();
     
-    // Scale the selected zone to match video dimensions
-    const scaleX = videoRef.current.videoWidth / (containerRef.current?.clientWidth || 1);
-    const scaleY = videoRef.current.videoHeight / (containerRef.current?.clientHeight || 1);
-    
-    const scaledZone = {
-      x: selectedZone.x * scaleX,
-      y: selectedZone.y * scaleY,
-      width: selectedZone.width * scaleX,
-      height: selectedZone.height * scaleY,
+    // Define full frame zone
+    const fullFrameZone = {
+      x: 0,
+      y: 0,
+      width: videoRef.current.videoWidth,
+      height: videoRef.current.videoHeight,
     };
     
     // Real-time detection loop
@@ -235,10 +232,11 @@ const ZoneWatch: React.FC = () => {
       
       // If we have a previous frame, compare them
       if (prevFrameRef.current) {
+        // Note: Ideally, we would use YOLO here for better object detection
         const hasMovement = detectMovement(
           prevFrameRef.current, 
           currentFrame, 
-          scaledZone,
+          fullFrameZone,
           sensitivityThreshold,
           movementThreshold
         );
@@ -247,19 +245,20 @@ const ZoneWatch: React.FC = () => {
           const boundingBox = getBoundingBoxForMovement(
             prevFrameRef.current,
             currentFrame,
-            scaledZone,
+            fullFrameZone,
             sensitivityThreshold
           );
           
           if (boundingBox) {
-            const displayBox = {
-              x: boundingBox.x / scaleX,
-              y: boundingBox.y / scaleY,
-              width: boundingBox.width / scaleX,
-              height: boundingBox.height / scaleY,
+            const displayBoundingBox = {
+              // Scale to display dimensions
+              x: boundingBox.x * (containerRef.current?.clientWidth || 1) / video.videoWidth,
+              y: boundingBox.y * (containerRef.current?.clientHeight || 1) / video.videoHeight,
+              width: boundingBox.width * (containerRef.current?.clientWidth || 1) / video.videoWidth,
+              height: boundingBox.height * (containerRef.current?.clientHeight || 1) / video.videoHeight,
             };
             
-            setCurrentMovementBox(displayBox);
+            setCurrentMovementBox(displayBoundingBox);
             
             // Add to events if not too close to an existing event
             const timestamp = video.currentTime;
@@ -270,7 +269,7 @@ const ZoneWatch: React.FC = () => {
             if (!tooClose) {
               setMovementEvents(prev => [
                 ...prev, 
-                { timestamp, boundingBox: displayBox }
+                { timestamp, boundingBox: displayBoundingBox }
               ]);
             }
           }
@@ -308,7 +307,7 @@ const ZoneWatch: React.FC = () => {
   return (
     <div className="container mx-auto p-4 space-y-6">
       <h1 className="text-2xl font-bold text-center mb-6">
-        ZoneWatch: Movement Detector for Surveillance Videos
+        ZoneWatch: Full-Frame Movement Detector for Surveillance Videos
       </h1>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -322,33 +321,18 @@ const ZoneWatch: React.FC = () => {
                   videoRef={videoRef}
                 />
                 
-                {/* Zone selection overlay */}
+                {/* Movement detection overlay */}
                 <div className="video-overlay">
-                  {videoFile && (
-                    <ZoneSelector
-                      containerRef={containerRef}
-                      videoRef={videoRef}
-                      onZoneSelected={setSelectedZone}
-                    />
-                  )}
-                  
-                  {/* Movement highlight */}
-                  {currentMovementBox && (
-                    <div 
-                      className="movement-highlight"
-                      style={{
-                        left: `${currentMovementBox.x}px`,
-                        top: `${currentMovementBox.y}px`,
-                        width: `${currentMovementBox.width}px`,
-                        height: `${currentMovementBox.height}px`
-                      }}
-                    />
-                  )}
+                  <MovementDisplay
+                    containerRef={containerRef}
+                    videoRef={videoRef}
+                    currentMovementBox={currentMovementBox}
+                  />
                 </div>
               </div>
               
               {/* Detection controls */}
-              {videoFile && selectedZone && (
+              {videoFile && (
                 <div className="flex justify-center space-x-4 mt-4">
                   <Button
                     onClick={isDetectionActive ? stopRealTimeDetection : startRealTimeDetection}
